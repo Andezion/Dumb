@@ -1,0 +1,27 @@
+name: phyra
+description: "PHYRA - Experimental Physical Communication Laboratory for Android."
+publish_to: 'none' 
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.6.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  flutter_riverpod: ^2.6.1
+  crypto: ^3.0.7
+  file_picker: ^11.0.3
+  permission_handler: ^13.0.2
+  path_provider: ^2.1.5
+  share_plus: ^12.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+flutter:
+  uses-material-design: true
+
