@@ -24,6 +24,7 @@ migrate_working_dir/
 /build/
 app.*.symbols
 app.*.map.json
-/android/app/debug
-/android/app/profile
-/android/app/release
+/android
+/ios
+.metadata
+pubspec.lock
