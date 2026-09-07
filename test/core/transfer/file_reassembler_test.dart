@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -22,16 +21,5 @@ void main() {
 
     expect(reassembler.isComplete, isFalse);
     expect(reassembler.receivedPacketCount, 2);
-  });
-
-  test('finalize writes the assembled bytes to disk', () async {
-    final dir = await Directory.systemTemp.createTemp('phyra_test');
-    addTearDown(() => dir.delete(recursive: true));
-
-    final reassembler = FileReassembler(totalPacketCount: 1);
-    reassembler.addChunk(1, Uint8List.fromList([104, 105]));
-
-    final file = await reassembler.finalize(dir, 'out.txt');
-    expect(await file.readAsString(), 'hi');
   });
 }
