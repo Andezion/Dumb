@@ -1,7 +1,7 @@
 abstract final class ProtocolConstants {
   static const List<int> magic = [0x50, 0x48];
 
-  static const int version = 1;
+  static const int version = 2;
 
   static const int headerSize = 14;
   static const int crcSize = 4;
