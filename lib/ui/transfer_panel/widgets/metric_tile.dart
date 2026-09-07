@@ -14,16 +14,18 @@ class MetricTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PhyraPanel(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(label, style: PhyraTextStyles.telemetryLabel),
-          const SizedBox(height: 6),
+          const SizedBox(height: 2),
           Text(
             value,
             style: PhyraTextStyles.telemetryValue.copyWith(color: valueColor ?? PhyraColors.white),
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
