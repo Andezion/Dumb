@@ -122,13 +122,19 @@ class TransferManager extends Notifier<TransferManagerState> {
       state = state.copyWith(phase: const TransferTransmitting(0.0));
 
       final metadataBits = BitUtils.bytesToBits(metadataPacket.toBytes());
+      final totalChunks = chunkResult.chunks.length;
+      final totalBits = metadataBits.length * ProtocolConstants.metadataRepeatCount +
+          chunkResult.chunks.fold<int>(0, (sum, chunk) => sum + Packet.totalBytesFor(chunk.length) * 8);
+      var sentBits = 0;
+
       for (var i = 0; i < ProtocolConstants.metadataRepeatCount; i++) {
         await channel.startTransmit(metadataBits, config: const {});
+        sentBits += metadataBits.length;
+        state = state.copyWith(phase: TransferTransmitting(sentBits / totalBits));
         await Future.delayed(_kInterPacketGap);
       }
 
       var stats = state.statistics;
-      final totalChunks = chunkResult.chunks.length;
       for (var i = 0; i < totalChunks; i++) {
         final chunk = chunkResult.chunks[i];
         final packet = Packet(
@@ -140,14 +146,16 @@ class TransferManager extends Notifier<TransferManagerState> {
           ),
           payload: chunk,
         );
-        await channel.startTransmit(BitUtils.bytesToBits(packet.toBytes()), config: const {});
+        final packetBits = BitUtils.bytesToBits(packet.toBytes());
+        await channel.startTransmit(packetBits, config: const {});
+        sentBits += packetBits.length;
         await Future.delayed(_kInterPacketGap);
 
         stats = stats.copyWith(
           packetsSent: stats.packetsSent + 1,
           bytesTransferred: stats.bytesTransferred + chunk.length,
         );
-        state = state.copyWith(statistics: stats, phase: TransferTransmitting((i + 1) / totalChunks));
+        state = state.copyWith(statistics: stats, phase: TransferTransmitting(sentBits / totalBits));
       }
 
       final report = TransferReport(
