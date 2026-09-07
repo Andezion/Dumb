@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/channel/channel_id.dart';
 import '../../core/channel/channel_metrics.dart';
 import '../../core/channel/channel_registry_provider.dart';
+import '../../core/security/security_config.dart';
 import '../../core/transfer/transfer_manager_provider.dart';
 import '../../core/transfer/transfer_state.dart';
 import '../../theme/phyra_colors.dart';
@@ -24,12 +25,14 @@ class TransferInstrumentPanelScreen extends ConsumerStatefulWidget {
     super.key,
     required this.intent,
     required this.channelId,
+    required this.security,
     this.file,
     this.saveDirectory,
   });
 
   final TransferIntent intent;
   final ChannelId channelId;
+  final SecurityConfig security;
   final File? file;
   final Directory? saveDirectory;
 
@@ -54,9 +57,13 @@ class _TransferInstrumentPanelScreenState extends ConsumerState<TransferInstrume
 
     final manager = ref.read(transferManagerProvider.notifier);
     if (widget.intent == TransferIntent.transmit) {
-      manager.startTransmit(channelId: widget.channelId, file: widget.file!);
+      manager.startTransmit(channelId: widget.channelId, file: widget.file!, security: widget.security);
     } else {
-      manager.startReceiveFile(channelId: widget.channelId, saveDirectory: widget.saveDirectory!);
+      manager.startReceiveFile(
+        channelId: widget.channelId,
+        saveDirectory: widget.saveDirectory!,
+        security: widget.security,
+      );
     }
   }
 
