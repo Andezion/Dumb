@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 class FileReassembler {
@@ -27,11 +26,5 @@ class FileReassembler {
       if (chunk != null) builder.add(chunk);
     }
     return builder.toBytes();
-  }
-
-  Future<File> finalize(Directory directory, String fileName) async {
-    final file = File('${directory.path}/$fileName');
-    await file.writeAsBytes(assembleBytes());
-    return file;
   }
 }
