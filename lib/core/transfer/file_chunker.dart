@@ -19,6 +19,15 @@ abstract final class FileChunker {
     int chunkSize = ProtocolConstants.defaultPayloadBytes,
   }) async {
     final bytes = await file.readAsBytes();
+    return chunkBytes(bytes, sha256Hex: sha256Hex(bytes), totalBytes: bytes.length, chunkSize: chunkSize);
+  }
+
+  static FileChunkResult chunkBytes(
+    Uint8List bytes, {
+    required String sha256Hex,
+    required int totalBytes,
+    int chunkSize = ProtocolConstants.defaultPayloadBytes,
+  }) {
     final chunks = <Uint8List>[];
     for (var offset = 0; offset < bytes.length; offset += chunkSize) {
       final end = min(offset + chunkSize, bytes.length);
@@ -29,8 +38,8 @@ abstract final class FileChunker {
     }
     return FileChunkResult(
       chunks: chunks,
-      sha256Hex: sha256Hex(bytes),
-      totalBytes: bytes.length,
+      sha256Hex: sha256Hex,
+      totalBytes: totalBytes,
     );
   }
 }
