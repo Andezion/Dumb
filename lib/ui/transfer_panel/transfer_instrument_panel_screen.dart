@@ -55,16 +55,19 @@ class _TransferInstrumentPanelScreenState extends ConsumerState<TransferInstrume
       }
     });
 
-    final manager = ref.read(transferManagerProvider.notifier);
-    if (widget.intent == TransferIntent.transmit) {
-      manager.startTransmit(channelId: widget.channelId, file: widget.file!, security: widget.security);
-    } else {
-      manager.startReceiveFile(
-        channelId: widget.channelId,
-        saveDirectory: widget.saveDirectory!,
-        security: widget.security,
-      );
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final manager = ref.read(transferManagerProvider.notifier);
+      if (widget.intent == TransferIntent.transmit) {
+        manager.startTransmit(channelId: widget.channelId, file: widget.file!, security: widget.security);
+      } else {
+        manager.startReceiveFile(
+          channelId: widget.channelId,
+          saveDirectory: widget.saveDirectory!,
+          security: widget.security,
+        );
+      }
+    });
   }
 
   @override
@@ -105,6 +108,12 @@ class _TransferInstrumentPanelScreenState extends ConsumerState<TransferInstrume
     final stats = managerState.statistics;
     final signalLevel = _latestAcousticMetrics?.signalLevel ?? 0.0;
     final symbolLabel = _latestAcousticMetrics?.detectedSymbol?.toString() ?? '—';
+    final progress = switch (phase) {
+      TransferTransmitting(:final progress) => progress,
+      TransferReceiving(:final progress) => progress,
+      TransferComplete() => 1.0,
+      _ => null,
+    };
 
     return Scaffold(
       appBar: AppBar(title: const Text('Instrument panel')),
@@ -118,6 +127,29 @@ class _TransferInstrumentPanelScreenState extends ConsumerState<TransferInstrume
               Text(widget.channelId.title, style: PhyraTextStyles.title.copyWith(fontSize: 22)),
               const SizedBox(height: 4),
               Text('Mode  $modeLabel', style: PhyraTextStyles.sectionLabel),
+              if (progress != null) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(2),
+                        child: LinearProgressIndicator(
+                          value: progress.clamp(0.0, 1.0),
+                          minHeight: 6,
+                          backgroundColor: PhyraColors.darkGray,
+                          valueColor: const AlwaysStoppedAnimation(PhyraColors.white),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      '${(progress.clamp(0.0, 1.0) * 100).toStringAsFixed(0)}%',
+                      style: PhyraTextStyles.telemetryLabel,
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 20),
               PhyraPanel(child: SignalMeter(level: signalLevel)),
               const SizedBox(height: 16),
