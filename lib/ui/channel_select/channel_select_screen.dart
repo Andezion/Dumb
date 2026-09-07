@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/channel/channel_id.dart';
 import '../../theme/phyra_text_styles.dart';
-import '../calibrate/calibrate_screen.dart';
 import '../common/transfer_intent.dart';
+import '../security/security_select_screen.dart';
 import 'channel_card.dart';
 
 class ChannelSelectScreen extends StatelessWidget {
@@ -18,7 +18,7 @@ class ChannelSelectScreen extends StatelessWidget {
   void _selectChannel(BuildContext context, ChannelId id) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => CalibrateScreen(intent: intent, channelId: id, file: file),
+        builder: (_) => SecuritySelectScreen(intent: intent, channelId: id, file: file),
       ),
     );
   }
