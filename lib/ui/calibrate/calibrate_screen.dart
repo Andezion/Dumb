@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/channel/channel_id.dart';
 import '../../core/channel/channel_registry_provider.dart';
+import '../../core/security/security_config.dart';
 import '../../theme/phyra_colors.dart';
 import '../../theme/phyra_text_styles.dart';
 import '../common/phyra_panel.dart';
@@ -14,10 +15,17 @@ import '../common/transfer_intent.dart';
 import '../transfer_panel/transfer_instrument_panel_screen.dart';
 
 class CalibrateScreen extends ConsumerStatefulWidget {
-  const CalibrateScreen({super.key, required this.intent, required this.channelId, this.file});
+  const CalibrateScreen({
+    super.key,
+    required this.intent,
+    required this.channelId,
+    required this.security,
+    this.file,
+  });
 
   final TransferIntent intent;
   final ChannelId channelId;
+  final SecurityConfig security;
   final File? file;
 
   @override
@@ -54,6 +62,7 @@ class _CalibrateScreenState extends ConsumerState<CalibrateScreen> {
         builder: (_) => TransferInstrumentPanelScreen(
           intent: widget.intent,
           channelId: widget.channelId,
+          security: widget.security,
           file: widget.file,
           saveDirectory: saveDirectory,
         ),
