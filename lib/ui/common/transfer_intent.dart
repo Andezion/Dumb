@@ -1,0 +1,1 @@
+enum TransferIntent { transmit, receive }
