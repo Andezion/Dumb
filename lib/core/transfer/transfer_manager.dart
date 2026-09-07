@@ -1,17 +1,22 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../bitstream/bit_utils.dart';
 import '../channel/channel_id.dart';
 import '../channel/channel_registry_provider.dart';
+import '../compression/codec_registry_provider.dart';
+import '../crypto/cipher_registry_provider.dart';
+import '../protocol/metadata_envelope.dart';
 import '../protocol/metadata_payload.dart';
 import '../protocol/packet.dart';
 import '../protocol/packet_header.dart';
 import '../protocol/packet_stream_parser.dart';
 import '../protocol/packet_type.dart';
 import '../protocol/protocol_constants.dart';
+import '../security/security_config.dart';
 import 'file_chunker.dart';
 import 'file_reassembler.dart';
 import 'sha256_verifier.dart';
@@ -23,6 +28,7 @@ import 'transfer_statistics.dart';
 const _kInterPacketGap = Duration(milliseconds: 250);
 
 const _kReceiveIdleTimeout = Duration(seconds: 8);
+const _kMaxSanePacketCount = 1000000;
 
 class TransferManagerState {
   const TransferManagerState({required this.phase, required this.statistics, this.report});
@@ -56,10 +62,17 @@ class TransferManager extends Notifier<TransferManagerState> {
   Timer? _idleTimer;
   Completer<void>? _receiveStopCompleter;
 
-  Future<void> startTransmit({required ChannelId channelId, required File file}) async {
+  Future<void> startTransmit({
+    required ChannelId channelId,
+    required File file,
+    required SecurityConfig security,
+  }) async {
     _activeChannelId = channelId;
     _cancelRequested = false;
     final channel = ref.read(channelRegistryProvider).forId(channelId);
+    final cipher = ref.read(cipherRegistryProvider).forId(security.cipherId);
+    final codec = ref.read(codecRegistryProvider).forId(security.codecId);
+    final key = security.derivedKey;
 
     state = TransferManagerState.initial().copyWith(phase: const TransferCalibrating());
     try {
@@ -71,7 +84,16 @@ class TransferManager extends Notifier<TransferManagerState> {
     }
 
     try {
-      final chunkResult = await FileChunker.chunk(file);
+      final originalBytes = await file.readAsBytes();
+      final originalSha256 = sha256Hex(originalBytes);
+      final compressed = codec.encode(originalBytes);
+      final nonceForData = MetadataEnvelope.generateNonce(cipher.nonceLength);
+      final cipherText = await cipher.encrypt(compressed, key: key, nonce: nonceForData);
+      final chunkResult = FileChunker.chunkBytes(
+        cipherText,
+        sha256Hex: originalSha256,
+        totalBytes: originalBytes.length,
+      );
       final transferId = generateTransferId();
       final fileName = file.uri.pathSegments.isNotEmpty ? file.uri.pathSegments.last : 'file.bin';
       final metadata = MetadataPayload(
@@ -81,7 +103,12 @@ class TransferManager extends Notifier<TransferManagerState> {
         totalPacketCount: chunkResult.chunks.length,
         sha256Hex: chunkResult.sha256Hex,
       );
-      final metadataBytes = metadata.encode();
+      final metadataBytes = await MetadataEnvelope.encode(
+        metadata,
+        cipher: cipher,
+        key: key,
+        nonceForData: nonceForData,
+      );
       final metadataPacket = Packet(
         header: PacketHeader(
           type: PacketType.metadata,
@@ -146,10 +173,17 @@ class TransferManager extends Notifier<TransferManagerState> {
     }
   }
 
-  Future<void> startReceiveFile({required ChannelId channelId, required Directory saveDirectory}) async {
+  Future<void> startReceiveFile({
+    required ChannelId channelId,
+    required Directory saveDirectory,
+    required SecurityConfig security,
+  }) async {
     _activeChannelId = channelId;
     _cancelRequested = false;
     final channel = ref.read(channelRegistryProvider).forId(channelId);
+    final cipher = ref.read(cipherRegistryProvider).forId(security.cipherId);
+    final codec = ref.read(codecRegistryProvider).forId(security.codecId);
+    final key = security.derivedKey;
 
     state = TransferManagerState.initial().copyWith(phase: const TransferCalibrating());
     try {
@@ -165,6 +199,8 @@ class TransferManager extends Notifier<TransferManagerState> {
     final parser = PacketStreamParser();
     MetadataPayload? metadata;
     FileReassembler? reassembler;
+    Uint8List? nonceForData;
+    String? metadataFailureReason;
     var stats = state.statistics;
     final stopCompleter = Completer<void>();
     _receiveStopCompleter = stopCompleter;
@@ -176,14 +212,25 @@ class TransferManager extends Notifier<TransferManagerState> {
       });
     }
 
-    final parseSubscription = parser.events.listen((event) {
+    final parseSubscription = parser.events.listen((event) async {
       resetIdleTimer();
       switch (event) {
         case PacketParsedEvent(:final packet):
           if (packet.header.type == PacketType.metadata) {
-            if (metadata == null) {
-              metadata = MetadataPayload.decode(packet.payload);
-              reassembler = FileReassembler(totalPacketCount: metadata!.totalPacketCount);
+            if (metadata == null && metadataFailureReason == null) {
+              try {
+                final result = await MetadataEnvelope.decode(packet.payload, cipher: cipher, key: key);
+                if (result.payload.totalPacketCount <= 0 ||
+                    result.payload.totalPacketCount > _kMaxSanePacketCount) {
+                  throw const FormatException('Implausible packet count');
+                }
+                metadata = result.payload;
+                nonceForData = result.nonceForData;
+                reassembler = FileReassembler(totalPacketCount: metadata!.totalPacketCount);
+              } catch (_) {
+                metadataFailureReason = 'Metadata decode failed - check passphrase/cipher/codec match';
+                if (!stopCompleter.isCompleted) stopCompleter.complete();
+              }
             }
           } else if (reassembler != null) {
             reassembler!.addChunk(packet.header.sequence, packet.payload);
@@ -218,9 +265,18 @@ class TransferManager extends Notifier<TransferManagerState> {
     await parseSubscription.cancel();
     await parser.dispose();
 
-    if (metadata == null || reassembler == null) {
+    if (metadataFailureReason != null) {
       state = state.copyWith(
-        phase: _cancelRequested ? const TransferIdle() : const TransferFailed('No signal detected — metadata never received'),
+        phase: _cancelRequested ? const TransferIdle() : TransferFailed(metadataFailureReason!),
+      );
+      _cancelRequested = false;
+      _activeChannelId = null;
+      return;
+    }
+
+    if (metadata == null || reassembler == null || nonceForData == null) {
+      state = state.copyWith(
+        phase: _cancelRequested ? const TransferIdle() : const TransferFailed('No signal detected - metadata never received'),
       );
       _cancelRequested = false;
       _activeChannelId = null;
@@ -228,23 +284,33 @@ class TransferManager extends Notifier<TransferManagerState> {
     }
 
     state = state.copyWith(phase: const TransferVerifying());
-    final file = await reassembler!.finalize(saveDirectory, metadata!.fileName);
-    final bytes = await file.readAsBytes();
-    final verified = verifySha256(bytes, metadata!.sha256Hex);
+    try {
+      final cipherText = reassembler!.assembleBytes();
+      final compressed = await cipher.decrypt(cipherText, key: key, nonce: nonceForData!);
+      final originalBytes = codec.decode(compressed);
+      final verified = verifySha256(originalBytes, metadata!.sha256Hex);
 
-    final report = TransferReport(
-      channel: channelId,
-      fileName: metadata!.fileName,
-      sizeBytes: metadata!.fileSizeBytes,
-      duration: stats.elapsed,
-      averageRateBytesPerSec: stats.rateBytesPerSec,
-      packetsSent: 0,
-      packetsReceived: stats.packetsReceived,
-      packetErrors: stats.crcErrors,
-      verified: verified,
-      filePath: file.path,
-    );
-    state = state.copyWith(phase: const TransferComplete(), report: report);
+      final file = File('${saveDirectory.path}/${metadata!.fileName}');
+      await file.writeAsBytes(originalBytes);
+
+      final report = TransferReport(
+        channel: channelId,
+        fileName: metadata!.fileName,
+        sizeBytes: metadata!.fileSizeBytes,
+        duration: stats.elapsed,
+        averageRateBytesPerSec: stats.rateBytesPerSec,
+        packetsSent: 0,
+        packetsReceived: stats.packetsReceived,
+        packetErrors: stats.crcErrors,
+        verified: verified,
+        filePath: file.path,
+      );
+      state = state.copyWith(phase: const TransferComplete(), report: report);
+    } catch (e) {
+      state = state.copyWith(
+        phase: TransferFailed('Decode failed - check passphrase/cipher/codec match: $e'),
+      );
+    }
     _cancelRequested = false;
     _activeChannelId = null;
   }
