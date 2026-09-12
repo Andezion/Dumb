@@ -1,6 +1,8 @@
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
+
 import '../crypto/cipher.dart';
 import 'metadata_payload.dart';
 
@@ -20,6 +22,7 @@ abstract final class MetadataEnvelope {
     required Uint8List key,
     required Uint8List nonceForData,
   }) async {
+    debugPrint('[MetadataEnvelope] encode() using ${cipher.id.name} cipher');
     final nonceForMetadata = generateNonce(cipher.nonceLength);
     final cipherText = await cipher.encrypt(payload.encode(), key: key, nonce: nonceForMetadata);
 
@@ -27,7 +30,9 @@ abstract final class MetadataEnvelope {
     builder.add(nonceForMetadata);
     builder.add(nonceForData);
     builder.add(cipherText);
-    return builder.toBytes();
+    final result = builder.toBytes();
+    debugPrint('[MetadataEnvelope] encode() -> ${result.length} byte(s)');
+    return result;
   }
 
   static Future<MetadataEnvelopeResult> decode(
@@ -35,8 +40,10 @@ abstract final class MetadataEnvelope {
     required Cipher cipher,
     required Uint8List key,
   }) async {
+    debugPrint('[MetadataEnvelope] decode() ${bytes.length} byte(s) using ${cipher.id.name} cipher');
     final n = cipher.nonceLength;
     if (bytes.length < 2 * n) {
+      debugPrint('[MetadataEnvelope] decode() ERROR: envelope too short (${bytes.length} < ${2 * n})');
       throw const FormatException('Metadata envelope too short - check passphrase/cipher/codec match');
     }
     final nonceForMetadata = Uint8List.sublistView(bytes, 0, n);
@@ -45,6 +52,8 @@ abstract final class MetadataEnvelope {
 
     final plainText = await cipher.decrypt(cipherText, key: key, nonce: nonceForMetadata);
     final payload = MetadataPayload.decode(plainText);
+    debugPrint('[MetadataEnvelope] decode() -> ${payload.fileName} (${payload.fileSizeBytes} byte(s), '
+        '${payload.totalPacketCount} packet(s))');
     return MetadataEnvelopeResult(payload: payload, nonceForData: nonceForData);
   }
 
