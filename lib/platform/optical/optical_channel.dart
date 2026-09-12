@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../core/channel/channel_capabilities.dart';
 import '../../core/channel/channel_id.dart';
@@ -37,23 +37,29 @@ class OpticalChannel implements PhysicalChannel {
 
   @override
   Future<ChannelCapabilities> initialize() async {
+    debugPrint('[OpticalChannel] initialize()');
     try {
       final cameras = await availableCameras();
+      debugPrint('[OpticalChannel] initialize() found ${cameras.length} camera(s)');
       if (cameras.isEmpty) {
         return const ChannelCapabilities(hardwareAvailable: false, unavailableReason: 'No camera available');
       }
       return const ChannelCapabilities(hardwareAvailable: true);
     } catch (e) {
+      debugPrint('[OpticalChannel] initialize() FAILED: $e');
       return ChannelCapabilities(hardwareAvailable: false, unavailableReason: '$e');
     }
   }
 
   @override
   Future<Map<String, double>> calibrate() async {
+    debugPrint('[OpticalChannel] calibrate()');
     final cameras = await availableCameras();
     if (cameras.isEmpty) {
+      debugPrint('[OpticalChannel] calibrate() FAILED: no camera available');
       throw StateError('No camera available for calibration');
     }
+    debugPrint('[OpticalChannel] calibrate() found ${cameras.length} camera(s)');
     return {'camerasFound': cameras.length.toDouble()};
   }
 
@@ -61,6 +67,8 @@ class OpticalChannel implements PhysicalChannel {
   Future<void> startTransmit(List<int> bits, {required Map<String, dynamic> config}) async {
     _stopRequested = false;
     final frameDuration = Duration(milliseconds: this.config.frameDurationMs);
+    debugPrint('[OpticalChannel] startTransmit() ${bits.length} bit(s), '
+        'frameDuration=${frameDuration.inMilliseconds}ms');
 
     for (final chunk in _chunkBits(bits, OpticalGridFrame.payloadBitsPerFrame)) {
       if (_stopRequested) return;
@@ -84,6 +92,7 @@ class OpticalChannel implements PhysicalChannel {
 
   @override
   Stream<ReceivedSymbol> startReceive({required Map<String, dynamic> config}) {
+    debugPrint('[OpticalChannel] startReceive()');
     final controller = StreamController<ReceivedSymbol>();
     unawaited(_startReceiveLoop(controller));
     controller.onCancel = () async {
@@ -100,6 +109,7 @@ class OpticalChannel implements PhysicalChannel {
         (c) => c.lensDirection == CameraLensDirection.back,
         orElse: () => cameras.first,
       );
+      debugPrint('[OpticalChannel] opening camera ${back.name} (orientation=${back.sensorOrientation})');
       final controller = CameraController(
         back,
         ResolutionPreset.medium,
@@ -112,8 +122,10 @@ class OpticalChannel implements PhysicalChannel {
       _framesLocked = 0;
       _frameCrcErrors = 0;
 
+      debugPrint('[OpticalChannel] camera initialized, starting image stream');
       await controller.startImageStream((image) => _onCameraImage(image, back.sensorOrientation, sink));
     } catch (e) {
+      debugPrint('[OpticalChannel] ERROR: receive loop failed to start: $e');
       sink.addError(e);
     }
   }
@@ -160,9 +172,11 @@ class OpticalChannel implements PhysicalChannel {
 
       if (!decoded.crcOk) {
         _frameCrcErrors++;
+        debugPrint('[OpticalChannel] frame CRC error (total=$_frameCrcErrors)');
       } else if (decoded.frameIndex != _lastAcceptedFrameIndex) {
         _lastAcceptedFrameIndex = decoded.frameIndex;
         _framesLocked++;
+        debugPrint('[OpticalChannel] frame ${decoded.frameIndex} accepted (locked=$_framesLocked)');
         final bits = _bytesToBits(decoded.payload);
         final timestampUs = DateTime.now().microsecondsSinceEpoch;
         for (final bit in bits) {
@@ -201,6 +215,7 @@ class OpticalChannel implements PhysicalChannel {
 
   @override
   Future<void> stop() async {
+    debugPrint('[OpticalChannel] stop()');
     _stopRequested = true;
     await _stopReceiving();
   }
