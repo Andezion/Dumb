@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 
 import 'packet_type.dart';
 import 'protocol_constants.dart';
@@ -38,11 +38,22 @@ class PacketHeader {
     }
     final view = ByteData.sublistView(bytes, offset, offset + ProtocolConstants.headerSize);
     final version = view.getUint8(2);
-    if (version != ProtocolConstants.version) return null;
+    if (version != ProtocolConstants.version) {
+      debugPrint('[PacketHeader] tryDecode() ERROR: unsupported version $version at offset $offset');
+      return null;
+    }
     final type = PacketType.fromWireValue(view.getUint8(3));
-    if (type == null) return null;
+    if (type == null) {
+      debugPrint('[PacketHeader] tryDecode() ERROR: unknown packet type at offset $offset');
+      return null;
+    }
     final payloadLength = view.getUint16(12, Endian.big);
-    if (payloadLength > ProtocolConstants.maxPayloadBytes) return null;
+    if (payloadLength > ProtocolConstants.maxPayloadBytes) {
+      debugPrint('[PacketHeader] tryDecode() ERROR: payload length $payloadLength exceeds max');
+      return null;
+    }
+    debugPrint('[PacketHeader] tryDecode() type=${type.name} seq=${view.getUint32(8, Endian.big)} '
+        'payloadLength=$payloadLength');
     return PacketHeader(
       type: type,
       transferId: view.getUint32(4, Endian.big),
