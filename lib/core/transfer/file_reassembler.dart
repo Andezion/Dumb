@@ -1,7 +1,11 @@
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
+
 class FileReassembler {
-  FileReassembler({required this.totalPacketCount});
+  FileReassembler({required this.totalPacketCount}) {
+    debugPrint('[FileReassembler] created, expecting $totalPacketCount packet(s)');
+  }
 
   final int totalPacketCount;
   final Map<int, Uint8List> _chunksBySequence = {};
@@ -25,6 +29,9 @@ class FileReassembler {
       final chunk = _chunksBySequence[seq];
       if (chunk != null) builder.add(chunk);
     }
-    return builder.toBytes();
+    final result = builder.toBytes();
+    debugPrint('[FileReassembler] assembleBytes() ${_chunksBySequence.length}/$totalPacketCount '
+        'chunk(s) -> ${result.length} byte(s)');
+    return result;
   }
 }
