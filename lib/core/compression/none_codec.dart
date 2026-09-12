@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 
 import 'codec.dart';
 import 'codec_id.dart';
@@ -8,8 +8,14 @@ class NoneCodec implements Codec {
   CodecId get id => CodecId.none;
 
   @override
-  Uint8List encode(Uint8List data) => data;
+  Uint8List encode(Uint8List data) {
+    debugPrint('[NoneCodec] encode() passthrough ${data.length} byte(s)');
+    return data;
+  }
 
   @override
-  Uint8List decode(Uint8List data) => data;
+  Uint8List decode(Uint8List data) {
+    debugPrint('[NoneCodec] decode() passthrough ${data.length} byte(s)');
+    return data;
+  }
 }
