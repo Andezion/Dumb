@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../core/channel/channel_capabilities.dart';
@@ -42,24 +43,32 @@ class AcousticChannel implements PhysicalChannel {
 
   @override
   Future<ChannelCapabilities> initialize() async {
+    debugPrint('[AcousticChannel] initialize()');
     try {
       await _methodBridge.initialize(id);
+      debugPrint('[AcousticChannel] initialize() OK, hardware available');
       return const ChannelCapabilities(hardwareAvailable: true);
     } on PlatformException catch (e) {
+      debugPrint('[AcousticChannel] initialize() FAILED: ${e.message}');
       return ChannelCapabilities(hardwareAvailable: false, unavailableReason: e.message);
     }
   }
 
   @override
-  Future<Map<String, double>> calibrate() => _methodBridge.calibrate(id, args: _baseConfig);
+  Future<Map<String, double>> calibrate() {
+    debugPrint('[AcousticChannel] calibrate() freq0=$freq0Hz freq1=$freq1Hz');
+    return _methodBridge.calibrate(id, args: _baseConfig);
+  }
 
   @override
   Future<void> startTransmit(List<int> bits, {required Map<String, dynamic> config}) {
+    debugPrint('[AcousticChannel] startTransmit() ${bits.length} bit(s)');
     return _methodBridge.startTransmit(id, {..._baseConfig, ...config, 'bits': bits});
   }
 
   @override
   Stream<ReceivedSymbol> startReceive({required Map<String, dynamic> config}) {
+    debugPrint('[AcousticChannel] startReceive()');
     final controller = StreamController<ReceivedSymbol>();
     final subscription = _symbolBridge.listen(id).listen(controller.add, onError: controller.addError);
     unawaited(_methodBridge.startReceive(id, {..._baseConfig, ...config}));
@@ -71,5 +80,8 @@ class AcousticChannel implements PhysicalChannel {
   Stream<ChannelMetrics> get metrics => _telemetryBridge.listen(id);
 
   @override
-  Future<void> stop() => _methodBridge.stop(id);
+  Future<void> stop() {
+    debugPrint('[AcousticChannel] stop()');
+    return _methodBridge.stop(id);
+  }
 }
