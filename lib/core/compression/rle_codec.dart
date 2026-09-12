@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
+
 import 'codec.dart';
 import 'codec_id.dart';
 
@@ -21,7 +23,9 @@ class RleCodec implements Codec {
       out.addByte(runLength);
       i += runLength;
     }
-    return out.toBytes();
+    final result = out.toBytes();
+    debugPrint('[RleCodec] encode() ${data.length} byte(s) -> ${result.length} byte(s)');
+    return result;
   }
 
   @override
@@ -30,6 +34,8 @@ class RleCodec implements Codec {
     for (var i = 0; i + 1 < data.length; i += 2) {
       out.add(List.filled(data[i + 1], data[i]));
     }
-    return out.toBytes();
+    final result = out.toBytes();
+    debugPrint('[RleCodec] decode() ${data.length} byte(s) -> ${result.length} byte(s)');
+    return result;
   }
 }
