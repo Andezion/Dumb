@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:math';
-import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
 
 import '../protocol/protocol_constants.dart';
 import 'sha256_verifier.dart';
@@ -19,6 +20,7 @@ abstract final class FileChunker {
     int chunkSize = ProtocolConstants.defaultPayloadBytes,
   }) async {
     final bytes = await file.readAsBytes();
+    debugPrint('[FileChunker] chunk() ${file.path} -> ${bytes.length} byte(s)');
     return chunkBytes(bytes, sha256Hex: sha256Hex(bytes), totalBytes: bytes.length, chunkSize: chunkSize);
   }
 
@@ -36,6 +38,8 @@ abstract final class FileChunker {
     if (bytes.isEmpty) {
       chunks.add(Uint8List(0));
     }
+    debugPrint('[FileChunker] chunkBytes() ${bytes.length} byte(s) -> ${chunks.length} chunk(s) '
+        'of up to $chunkSize byte(s)');
     return FileChunkResult(
       chunks: chunks,
       sha256Hex: sha256Hex,
