@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
+
 import 'channel_capabilities.dart';
 import 'channel_id.dart';
 import 'channel_metrics.dart';
@@ -31,20 +33,28 @@ class SimulatedChannel implements PhysicalChannel {
   Stream<ChannelMetrics> get metrics => _metricsController.stream;
 
   @override
-  Future<ChannelCapabilities> initialize() async =>
-      const ChannelCapabilities(hardwareAvailable: true);
+  Future<ChannelCapabilities> initialize() async {
+    debugPrint('[SimulatedChannel:${id.name}] initialize()');
+    return const ChannelCapabilities(hardwareAvailable: true);
+  }
 
   @override
   Future<Map<String, double>> calibrate() async {
+    debugPrint('[SimulatedChannel:${id.name}] calibrate() start');
     await Future.delayed(calibrationLatency);
+    debugPrint('[SimulatedChannel:${id.name}] calibrate() done');
     return {'noiseFloorDb0': -60, 'noiseFloorDb1': -60};
   }
 
   @override
   Future<void> startTransmit(List<int> bits, {required Map<String, dynamic> config}) async {
+    debugPrint('[SimulatedChannel:${id.name}] startTransmit() ${bits.length} bit(s)');
     _stopRequested = false;
     for (var i = 0; i < bits.length; i++) {
-      if (_stopRequested) return;
+      if (_stopRequested) {
+        debugPrint('[SimulatedChannel:${id.name}] startTransmit() stopped at bit $i/${bits.length}');
+        return;
+      }
       await Future.delayed(symbolDuration);
       final bit = bits[i];
       final delivered = _random.nextDouble() < bitErrorRate ? 1 - bit : bit;
@@ -64,10 +74,12 @@ class SimulatedChannel implements PhysicalChannel {
         state: AcousticLinkState.locked,
       ));
     }
+    debugPrint('[SimulatedChannel:${id.name}] startTransmit() complete');
   }
 
   @override
   Stream<ReceivedSymbol> startReceive({required Map<String, dynamic> config}) {
+    debugPrint('[SimulatedChannel:${id.name}] startReceive()');
     _receiveController?.close();
     _receiveController = StreamController<ReceivedSymbol>.broadcast();
     return _receiveController!.stream;
@@ -75,6 +87,7 @@ class SimulatedChannel implements PhysicalChannel {
 
   @override
   Future<void> stop() async {
+    debugPrint('[SimulatedChannel:${id.name}] stop()');
     _stopRequested = true;
     await _receiveController?.close();
     _receiveController = null;
