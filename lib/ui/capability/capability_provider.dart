@@ -15,15 +15,22 @@ final hardwareInventoryProvider = FutureProvider<Map<String, bool>>((ref) async 
   return ChannelMethodBridge().getCapabilities();
 });
 
-class MicrophonePermissionController extends AsyncNotifier<PermissionStatus> {
+abstract class PermissionController {
+  Future<void> request();
+  Future<void> refresh();
+}
+
+class MicrophonePermissionController extends AsyncNotifier<PermissionStatus> implements PermissionController {
   @override
   Future<PermissionStatus> build() => Permission.microphone.status;
 
+  @override
   Future<void> request() async {
     state = const AsyncLoading();
     state = AsyncData(await Permission.microphone.request());
   }
 
+  @override
   Future<void> refresh() async {
     state = const AsyncLoading();
     state = AsyncData(await Permission.microphone.status);
@@ -33,4 +40,26 @@ class MicrophonePermissionController extends AsyncNotifier<PermissionStatus> {
 final microphonePermissionProvider =
     AsyncNotifierProvider<MicrophonePermissionController, PermissionStatus>(
   MicrophonePermissionController.new,
+);
+
+class CameraPermissionController extends AsyncNotifier<PermissionStatus> implements PermissionController {
+  @override
+  Future<PermissionStatus> build() => Permission.camera.status;
+
+  @override
+  Future<void> request() async {
+    state = const AsyncLoading();
+    state = AsyncData(await Permission.camera.request());
+  }
+
+  @override
+  Future<void> refresh() async {
+    state = const AsyncLoading();
+    state = AsyncData(await Permission.camera.status);
+  }
+}
+
+final cameraPermissionProvider =
+    AsyncNotifierProvider<CameraPermissionController, PermissionStatus>(
+  CameraPermissionController.new,
 );
