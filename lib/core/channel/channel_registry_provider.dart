@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../platform/acoustic_channel.dart';
@@ -15,6 +16,7 @@ final channelRegistryProvider = Provider<ChannelRegistry>((ref) {
   final useSimulated = ref.watch(useSimulatedChannelsProvider);
   final acousticConfig = ref.watch(acousticConfigProvider);
   final opticalConfig = ref.watch(opticalConfigProvider);
+  debugPrint('[ChannelRegistryProvider] rebuilding registry (useSimulated=$useSimulated)');
   return ChannelRegistry({
     ChannelId.acoustic: useSimulated
         ? SimulatedChannel(id: ChannelId.acoustic)
