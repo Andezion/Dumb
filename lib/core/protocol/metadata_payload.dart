@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
+
 class MetadataPayload {
   MetadataPayload({
     required this.fileName,
@@ -33,7 +35,9 @@ class MetadataPayload {
     final countField = ByteData(4)..setUint32(0, totalPacketCount, Endian.big);
     builder.add(countField.buffer.asUint8List());
     builder.add(sha256Bytes);
-    return builder.toBytes();
+    final result = builder.toBytes();
+    debugPrint('[MetadataPayload] encode() $fileName ($fileSizeBytes byte(s)) -> ${result.length} byte(s)');
+    return result;
   }
 
   static MetadataPayload decode(Uint8List bytes) {
@@ -57,6 +61,7 @@ class MetadataPayload {
     final sha256Bytes = bytes.sublist(offset, offset + 32);
     offset += 32;
 
+    debugPrint('[MetadataPayload] decode() $fileName ($fileSizeBytes byte(s), $totalPacketCount packet(s))');
     return MetadataPayload(
       fileName: fileName,
       fileSizeBytes: fileSizeBytes,
