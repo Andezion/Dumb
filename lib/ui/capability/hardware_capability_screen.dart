@@ -97,62 +97,89 @@ class _PermissionsPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final permissionAsync = ref.watch(microphonePermissionProvider);
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Permissions', style: PhyraTextStyles.telemetryLabel),
         const SizedBox(height: 8),
         PhyraPanel(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('Microphone access', style: PhyraTextStyles.telemetryLabel),
-                    const SizedBox(height: 4),
-                    permissionAsync.when(
-                      loading: () => const Text('Checking...', style: PhyraTextStyles.telemetryValueSmall),
-                      error: (error, _) => Text(
-                        'Unavailable',
-                        style: PhyraTextStyles.telemetryValueSmall.copyWith(color: PhyraColors.failure),
-                      ),
-                      data: (status) => Text(
-                        _label(status),
-                        style: PhyraTextStyles.telemetryValueSmall.copyWith(
-                          color: status.isGranted ? PhyraColors.success : PhyraColors.mediumGray,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+              _permissionRow(
+                context,
+                ref,
+                label: 'Microphone access',
+                permissionAsync: ref.watch(microphonePermissionProvider),
+                controller: ref.read(microphonePermissionProvider.notifier),
               ),
-              permissionAsync.maybeWhen(
-                data: (status) {
-                  if (status.isGranted) return const SizedBox.shrink();
-                  final controller = ref.read(microphonePermissionProvider.notifier);
-                  if (status.isPermanentlyDenied) {
-                    return OutlinedButton(
-                      onPressed: () async {
-                        await openAppSettings();
-                        await controller.refresh();
-                      },
-                      child: const Text('Open settings'),
-                    );
-                  }
-                  return OutlinedButton(
-                    onPressed: controller.request,
-                    child: const Text('Grant access'),
-                  );
-                },
-                orElse: () => const SizedBox.shrink(),
+              const SizedBox(height: 16),
+              _permissionRow(
+                context,
+                ref,
+                label: 'Camera access',
+                permissionAsync: ref.watch(cameraPermissionProvider),
+                controller: ref.read(cameraPermissionProvider.notifier),
               ),
             ],
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _permissionRow(
+    BuildContext context,
+    WidgetRef ref, {
+    required String label,
+    required AsyncValue<PermissionStatus> permissionAsync,
+    required PermissionController controller,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(label, style: PhyraTextStyles.telemetryLabel),
+              const SizedBox(height: 4),
+              permissionAsync.when(
+                loading: () => const Text('Checking...', style: PhyraTextStyles.telemetryValueSmall),
+                error: (error, _) => Text(
+                  'Unavailable',
+                  style: PhyraTextStyles.telemetryValueSmall.copyWith(color: PhyraColors.failure),
+                ),
+                data: (status) => Text(
+                  _label(status),
+                  style: PhyraTextStyles.telemetryValueSmall.copyWith(
+                    color: status.isGranted ? PhyraColors.success : PhyraColors.mediumGray,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        permissionAsync.maybeWhen(
+          data: (status) {
+            if (status.isGranted) return const SizedBox.shrink();
+            if (status.isPermanentlyDenied) {
+              return OutlinedButton(
+                onPressed: () async {
+                  await openAppSettings();
+                  await controller.refresh();
+                },
+                child: const Text('Open settings'),
+              );
+            }
+            return OutlinedButton(
+              onPressed: controller.request,
+              child: const Text('Grant access'),
+            );
+          },
+          orElse: () => const SizedBox.shrink(),
         ),
       ],
     );
