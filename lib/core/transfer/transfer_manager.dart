@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../bitstream/bit_utils.dart';
@@ -67,6 +67,7 @@ class TransferManager extends Notifier<TransferManagerState> {
     required File file,
     required SecurityConfig security,
   }) async {
+    debugPrint('[TransferManager] startTransmit() channel=${channelId.name} file=${file.path}');
     _activeChannelId = channelId;
     _cancelRequested = false;
     final channel = ref.read(channelRegistryProvider).forId(channelId);
@@ -75,9 +76,12 @@ class TransferManager extends Notifier<TransferManagerState> {
     final key = security.derivedKey;
 
     state = TransferManagerState.initial().copyWith(phase: const TransferCalibrating());
+    debugPrint('[TransferManager] calibrating ${channelId.name}...');
     try {
       await channel.calibrate();
+      debugPrint('[TransferManager] calibration OK');
     } catch (e) {
+      debugPrint('[TransferManager] ERROR: calibration failed: $e');
       state = state.copyWith(phase: TransferFailed('Calibration failed: $e'));
       _activeChannelId = null;
       return;
@@ -85,6 +89,7 @@ class TransferManager extends Notifier<TransferManagerState> {
 
     try {
       final originalBytes = await file.readAsBytes();
+      debugPrint('[TransferManager] read ${originalBytes.length} byte(s) from disk');
       final originalSha256 = sha256Hex(originalBytes);
       final compressed = codec.encode(originalBytes);
       final nonceForData = MetadataEnvelope.generateNonce(cipher.nonceLength);
@@ -95,6 +100,8 @@ class TransferManager extends Notifier<TransferManagerState> {
         totalBytes: originalBytes.length,
       );
       final transferId = generateTransferId();
+      debugPrint('[TransferManager] transferId=$transferId, ${chunkResult.chunks.length} chunk(s), '
+          'compressed=${compressed.length}B, cipherText=${cipherText.length}B');
       final fileName = file.uri.pathSegments.isNotEmpty ? file.uri.pathSegments.last : 'file.bin';
       final metadata = MetadataPayload(
         fileName: fileName,
@@ -127,6 +134,8 @@ class TransferManager extends Notifier<TransferManagerState> {
           chunkResult.chunks.fold<int>(0, (sum, chunk) => sum + Packet.totalBytesFor(chunk.length) * 8);
       var sentBits = 0;
 
+      debugPrint('[TransferManager] transmitting metadata packet '
+          '(x${ProtocolConstants.metadataRepeatCount} repeats)');
       for (var i = 0; i < ProtocolConstants.metadataRepeatCount; i++) {
         await channel.startTransmit(metadataBits, config: const {});
         sentBits += metadataBits.length;
@@ -147,6 +156,8 @@ class TransferManager extends Notifier<TransferManagerState> {
           payload: chunk,
         );
         final packetBits = BitUtils.bytesToBits(packet.toBytes());
+        debugPrint('[TransferManager] transmitting data packet ${i + 1}/$totalChunks '
+            '(${chunk.length}B payload)');
         await channel.startTransmit(packetBits, config: const {});
         sentBits += packetBits.length;
         await Future.delayed(_kInterPacketGap);
@@ -169,8 +180,11 @@ class TransferManager extends Notifier<TransferManagerState> {
         packetErrors: 0,
         verified: null,
       );
+      debugPrint('[TransferManager] startTransmit() COMPLETE: ${stats.packetsSent} packet(s), '
+          '${stats.bytesTransferred} byte(s) in ${stats.elapsed}');
       state = state.copyWith(phase: const TransferComplete(), report: report);
     } catch (e) {
+      debugPrint('[TransferManager] ERROR: transmission failed: $e');
       state = state.copyWith(
         phase: _cancelRequested ? const TransferIdle() : TransferFailed('Transmission failed: $e'),
       );
@@ -178,6 +192,7 @@ class TransferManager extends Notifier<TransferManagerState> {
       _cancelRequested = false;
       _activeChannelId = null;
       await channel.stop();
+      debugPrint('[TransferManager] startTransmit() channel stopped');
     }
   }
 
@@ -186,6 +201,8 @@ class TransferManager extends Notifier<TransferManagerState> {
     required Directory saveDirectory,
     required SecurityConfig security,
   }) async {
+    debugPrint('[TransferManager] startReceiveFile() channel=${channelId.name} '
+        'saveDir=${saveDirectory.path}');
     _activeChannelId = channelId;
     _cancelRequested = false;
     final channel = ref.read(channelRegistryProvider).forId(channelId);
@@ -194,14 +211,18 @@ class TransferManager extends Notifier<TransferManagerState> {
     final key = security.derivedKey;
 
     state = TransferManagerState.initial().copyWith(phase: const TransferCalibrating());
+    debugPrint('[TransferManager] calibrating ${channelId.name}...');
     try {
       await channel.calibrate();
+      debugPrint('[TransferManager] calibration OK');
     } catch (e) {
+      debugPrint('[TransferManager] ERROR: calibration failed: $e');
       state = state.copyWith(phase: TransferFailed('Calibration failed: $e'));
       _activeChannelId = null;
       return;
     }
 
+    debugPrint('[TransferManager] listening for signal...');
     state = state.copyWith(phase: const TransferReceiving(0.0));
 
     final parser = PacketStreamParser();
@@ -226,6 +247,7 @@ class TransferManager extends Notifier<TransferManagerState> {
         case PacketParsedEvent(:final packet):
           if (packet.header.type == PacketType.metadata) {
             if (metadata == null && metadataFailureReason == null) {
+              debugPrint('[TransferManager] metadata packet received, decoding...');
               try {
                 final result = await MetadataEnvelope.decode(packet.payload, cipher: cipher, key: key);
                 if (result.payload.totalPacketCount <= 0 ||
@@ -235,7 +257,10 @@ class TransferManager extends Notifier<TransferManagerState> {
                 metadata = result.payload;
                 nonceForData = result.nonceForData;
                 reassembler = FileReassembler(totalPacketCount: metadata!.totalPacketCount);
-              } catch (_) {
+                debugPrint('[TransferManager] metadata OK: ${metadata!.fileName}, '
+                    '${metadata!.totalPacketCount} packet(s) expected');
+              } catch (e) {
+                debugPrint('[TransferManager] ERROR: metadata decode failed: $e');
                 metadataFailureReason = 'Metadata decode failed - check passphrase/cipher/codec match';
                 if (!stopCompleter.isCompleted) stopCompleter.complete();
               }
@@ -246,13 +271,17 @@ class TransferManager extends Notifier<TransferManagerState> {
               packetsReceived: stats.packetsReceived + 1,
               bytesTransferred: stats.bytesTransferred + packet.payload.length,
             );
+            debugPrint('[TransferManager] data packet seq=${packet.header.sequence} received '
+                '(${reassembler!.receivedPacketCount}/${metadata!.totalPacketCount})');
             final progress = reassembler!.receivedPacketCount / metadata!.totalPacketCount;
             state = state.copyWith(statistics: stats, phase: TransferReceiving(progress));
             if (reassembler!.isComplete && !stopCompleter.isCompleted) {
+              debugPrint('[TransferManager] all packets received, stopping receive loop');
               stopCompleter.complete();
             }
           }
         case PacketCrcErrorEvent():
+          debugPrint('[TransferManager] CRC error (total=${stats.crcErrors + 1})');
           stats = stats.copyWith(crcErrors: stats.crcErrors + 1, resyncCount: stats.resyncCount + 1);
           state = state.copyWith(statistics: stats);
       }
@@ -265,6 +294,7 @@ class TransferManager extends Notifier<TransferManagerState> {
 
     resetIdleTimer();
     await stopCompleter.future;
+    debugPrint('[TransferManager] receive loop stopped');
     _idleTimer?.cancel();
     _receiveStopCompleter = null;
 
@@ -283,6 +313,7 @@ class TransferManager extends Notifier<TransferManagerState> {
     }
 
     if (metadata == null || reassembler == null || nonceForData == null) {
+      debugPrint('[TransferManager] ERROR: no signal detected, metadata never received');
       state = state.copyWith(
         phase: _cancelRequested ? const TransferIdle() : const TransferFailed('No signal detected - metadata never received'),
       );
@@ -292,14 +323,17 @@ class TransferManager extends Notifier<TransferManagerState> {
     }
 
     state = state.copyWith(phase: const TransferVerifying());
+    debugPrint('[TransferManager] verifying and reassembling ${metadata!.fileName}...');
     try {
       final cipherText = reassembler!.assembleBytes();
       final compressed = await cipher.decrypt(cipherText, key: key, nonce: nonceForData!);
       final originalBytes = codec.decode(compressed);
       final verified = verifySha256(originalBytes, metadata!.sha256Hex);
+      debugPrint('[TransferManager] sha256 verified=$verified');
 
       final file = File('${saveDirectory.path}/${metadata!.fileName}');
       await file.writeAsBytes(originalBytes);
+      debugPrint('[TransferManager] wrote ${originalBytes.length} byte(s) to ${file.path}');
 
       final report = TransferReport(
         channel: channelId,
@@ -313,8 +347,10 @@ class TransferManager extends Notifier<TransferManagerState> {
         verified: verified,
         filePath: file.path,
       );
+      debugPrint('[TransferManager] startReceiveFile() COMPLETE');
       state = state.copyWith(phase: const TransferComplete(), report: report);
     } catch (e) {
+      debugPrint('[TransferManager] ERROR: decode failed: $e');
       state = state.copyWith(
         phase: TransferFailed('Decode failed - check passphrase/cipher/codec match: $e'),
       );
@@ -324,6 +360,7 @@ class TransferManager extends Notifier<TransferManagerState> {
   }
 
   Future<void> cancel() async {
+    debugPrint('[TransferManager] cancel() requested (activeChannel=${_activeChannelId?.name})');
     _cancelRequested = true;
     _idleTimer?.cancel();
     final id = _activeChannelId;
@@ -336,6 +373,7 @@ class TransferManager extends Notifier<TransferManagerState> {
   }
 
   void reset() {
+    debugPrint('[TransferManager] reset()');
     state = TransferManagerState.initial();
   }
 }
