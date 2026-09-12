@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 
 import 'crc32.dart';
 import 'packet_header.dart';
@@ -55,10 +55,13 @@ class PacketParseResult {
     final storedCrc = ByteData.sublistView(bytes, payloadEnd, payloadEnd + ProtocolConstants.crcSize)
         .getUint32(0, Endian.big);
     final computedCrc = Crc32.compute(crcRegion);
+    final crcOk = storedCrc == computedCrc;
+    debugPrint('[Packet] tryParseAt() seq=${header.sequence} crcOk=$crcOk '
+        '(stored=0x${storedCrc.toRadixString(16)}, computed=0x${computedCrc.toRadixString(16)})');
 
     return PacketParseResult(
       packet: Packet(header: header, payload: Uint8List.fromList(payload)),
-      crcOk: storedCrc == computedCrc,
+      crcOk: crcOk,
       consumedBytes: total,
     );
   }
