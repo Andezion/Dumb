@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
+
 import 'codec.dart';
 import 'codec_id.dart';
 
@@ -9,6 +11,7 @@ class HuffmanCodec implements Codec {
 
   @override
   Uint8List encode(Uint8List data) {
+    debugPrint('[HuffmanCodec] encode() ${data.length} byte(s)');
     if (data.isEmpty) return Uint8List.fromList(const [0]);
 
     final freq = List<int>.filled(256, 0);
@@ -29,16 +32,19 @@ class HuffmanCodec implements Codec {
     }
 
     if (candidate.length >= data.length + 1) {
+      debugPrint('[HuffmanCodec] encode() compressed candidate not smaller, storing raw');
       final stored = BytesBuilder();
       stored.addByte(0);
       stored.add(data);
       return stored.toBytes();
     }
+    debugPrint('[HuffmanCodec] encode() -> ${candidate.length} byte(s)');
     return candidate;
   }
 
   @override
   Uint8List decode(Uint8List data) {
+    debugPrint('[HuffmanCodec] decode() ${data.length} byte(s)');
     if (data.isEmpty) return Uint8List(0);
     final tag = data[0];
     switch (tag) {
@@ -51,6 +57,7 @@ class HuffmanCodec implements Codec {
       case 2:
         return _decodeGeneral(data);
       default:
+        debugPrint('[HuffmanCodec] decode() ERROR: unknown tag $tag');
         throw FormatException('Unknown Huffman codec tag $tag');
     }
   }
@@ -112,6 +119,7 @@ class HuffmanCodec implements Codec {
         code = (code << 1) | reader.readBit();
         length++;
         if (length > 32) {
+          debugPrint('[HuffmanCodec] decode() ERROR: desynchronized bitstream at symbol $i');
           throw const FormatException('Huffman decode desynchronized - check passphrase/cipher/codec match');
         }
         symbol = decodeMap[length]?[code];
