@@ -48,6 +48,12 @@ class _CalibrateScreenState extends ConsumerState<CalibrateScreen> {
         throw StateError('Microphone permission denied');
       }
     }
+    if (widget.channelId == ChannelId.optical) {
+      final status = await Permission.camera.request();
+      if (!status.isGranted) {
+        throw StateError('Camera permission denied');
+      }
+    }
     return ref.read(channelRegistryProvider).forId(widget.channelId).calibrate();
   }
 
