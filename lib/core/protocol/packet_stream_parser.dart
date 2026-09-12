@@ -1,5 +1,6 @@
 import 'dart:async';
-import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
 
 import '../bitstream/bit_utils.dart';
 import 'packet.dart';
@@ -26,7 +27,9 @@ class PacketStreamParser {
   Stream<PacketParseEvent> get events => _controller.stream;
 
   void addBits(Iterable<int> bits) {
+    final added = bits.length;
     _bits.addAll(bits);
+    debugPrint('[PacketStreamParser] addBits() +$added bit(s), buffer=${_bits.length} bit(s)');
     _drain();
   }
 
@@ -34,18 +37,23 @@ class PacketStreamParser {
     while (true) {
       final magicBitOffset = _findMagic(_searchBitOffset);
       if (magicBitOffset == null) break;
+      debugPrint('[PacketStreamParser] magic found at bit offset $magicBitOffset');
 
       final candidateBytes = BitUtils.bitsToBytes(_bits.sublist(magicBitOffset));
       final result = PacketParseResult.tryParseAt(Uint8List.fromList(candidateBytes), 0);
       if (result == null) {
+        debugPrint('[PacketStreamParser] incomplete packet at offset $magicBitOffset, waiting for more bits');
         _searchBitOffset = magicBitOffset;
         break;
       }
 
       if (result.crcOk) {
+        debugPrint('[PacketStreamParser] packet parsed: type=${result.packet.header.type.name} '
+            'seq=${result.packet.header.sequence} payload=${result.packet.payload.length}B');
         _controller.add(PacketParsedEvent(result.packet));
         _searchBitOffset = magicBitOffset + result.consumedBytes * 8;
       } else {
+        debugPrint('[PacketStreamParser] CRC error at offset $magicBitOffset, skipping 1 bit');
         _controller.add(const PacketCrcErrorEvent());
         _searchBitOffset = magicBitOffset + 1;
       }
