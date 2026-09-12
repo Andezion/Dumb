@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../core/channel/channel_id.dart';
@@ -9,6 +10,7 @@ class TelemetryEventBridge {
   final EventChannel _eventChannel;
 
   Stream<ChannelMetrics> listen(ChannelId id) {
+    debugPrint('[TelemetryEventBridge] listen(${id.name}) subscribing to native event channel');
     return _eventChannel
         .receiveBroadcastStream()
         .where((event) => (event as Map)['channelId'] == id.name)
@@ -28,6 +30,7 @@ class TelemetryEventBridge {
           state: AcousticLinkState.values.byName(map['state'] as String),
         );
       default:
+        debugPrint('[TelemetryEventBridge] ERROR: unknown telemetry kind: ${map['kind']}');
         throw StateError('Unknown telemetry kind: ${map['kind']}');
     }
   }
