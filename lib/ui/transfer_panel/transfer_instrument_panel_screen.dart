@@ -23,6 +23,9 @@ import 'widgets/optical_grid_view.dart';
 import 'widgets/packet_counter_tile.dart';
 import 'widgets/signal_meter.dart';
 import 'widgets/spectrum_graph.dart';
+import 'widgets/waveform_graph.dart';
+
+const _kWaveformHistoryLength = 60;
 
 class TransferInstrumentPanelScreen extends ConsumerStatefulWidget {
   const TransferInstrumentPanelScreen({
@@ -48,6 +51,10 @@ class _TransferInstrumentPanelScreenState extends ConsumerState<TransferInstrume
   StreamSubscription<ChannelMetrics>? _metricsSubscription;
   AcousticMetrics? _latestAcousticMetrics;
   OpticalMetrics? _latestOpticalMetrics;
+  MechanicalMetrics? _latestMechanicalMetrics;
+  MagneticMetrics? _latestMagneticMetrics;
+  final List<double> _mechanicalHistory = [];
+  final List<double> _magneticHistory = [];
   bool _navigatedToReport = false;
 
   @override
@@ -60,6 +67,18 @@ class _TransferInstrumentPanelScreenState extends ConsumerState<TransferInstrume
         setState(() => _latestAcousticMetrics = metrics);
       } else if (metrics is OpticalMetrics) {
         setState(() => _latestOpticalMetrics = metrics);
+      } else if (metrics is MechanicalMetrics) {
+        setState(() {
+          _latestMechanicalMetrics = metrics;
+          _mechanicalHistory.add(metrics.accelerationMagnitude);
+          if (_mechanicalHistory.length > _kWaveformHistoryLength) _mechanicalHistory.removeAt(0);
+        });
+      } else if (metrics is MagneticMetrics) {
+        setState(() {
+          _latestMagneticMetrics = metrics;
+          _magneticHistory.add(metrics.fieldMagnitudeMicroTesla);
+          if (_magneticHistory.length > _kWaveformHistoryLength) _magneticHistory.removeAt(0);
+        });
       }
     });
 
@@ -114,8 +133,15 @@ class _TransferInstrumentPanelScreenState extends ConsumerState<TransferInstrume
     };
 
     final stats = managerState.statistics;
-    final signalLevel = _latestAcousticMetrics?.signalLevel ?? _latestOpticalMetrics?.confidence ?? 0.0;
-    final symbolLabel = _latestAcousticMetrics?.detectedSymbol?.toString() ?? '—';
+    final signalLevel = _latestAcousticMetrics?.signalLevel ??
+        _latestOpticalMetrics?.confidence ??
+        _latestMechanicalMetrics?.confidence ??
+        _latestMagneticMetrics?.confidence ??
+        0.0;
+    final symbolLabel = _latestAcousticMetrics?.detectedSymbol?.toString() ??
+        _latestMechanicalMetrics?.detectedSymbol?.toString() ??
+        _latestMagneticMetrics?.detectedSymbol?.toString() ??
+        '—';
     final isOptical = widget.channelId == ChannelId.optical;
     final progress = switch (phase) {
       TransferTransmitting(:final progress) => progress,
@@ -170,6 +196,22 @@ class _TransferInstrumentPanelScreenState extends ConsumerState<TransferInstrume
                     child: SpectrumGraph(
                       bins: _latestAcousticMetrics!.spectrumBins,
                       binFreqsHz: _latestAcousticMetrics!.binFreqsHz,
+                    ),
+                  )
+                else if (_latestMechanicalMetrics != null)
+                  PhyraPanel(
+                    child: WaveformGraph(
+                      label: 'Acceleration',
+                      samples: _mechanicalHistory,
+                      maxValue: _latestMechanicalMetrics!.thresholdMagnitude * 2,
+                    ),
+                  )
+                else if (_latestMagneticMetrics != null)
+                  PhyraPanel(
+                    child: WaveformGraph(
+                      label: 'Magnetic field',
+                      samples: _magneticHistory,
+                      maxValue: _latestMagneticMetrics!.thresholdMicroTesla * 2,
                     ),
                   ),
               ],
