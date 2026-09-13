@@ -3,6 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../platform/acoustic_channel.dart';
 import '../../platform/acoustic_config.dart';
+import '../../platform/magnetic_channel.dart';
+import '../../platform/magnetic_config.dart';
+import '../../platform/mechanical_channel.dart';
+import '../../platform/mechanical_config.dart';
 import '../../platform/optical/optical_channel.dart';
 import '../../platform/optical/optical_config.dart';
 import 'channel_id.dart';
@@ -16,6 +20,8 @@ final channelRegistryProvider = Provider<ChannelRegistry>((ref) {
   final useSimulated = ref.watch(useSimulatedChannelsProvider);
   final acousticConfig = ref.watch(acousticConfigProvider);
   final opticalConfig = ref.watch(opticalConfigProvider);
+  final mechanicalConfig = ref.watch(mechanicalConfigProvider);
+  final magneticConfig = ref.watch(magneticConfigProvider);
   debugPrint('[ChannelRegistryProvider] rebuilding registry (useSimulated=$useSimulated)');
   return ChannelRegistry({
     ChannelId.acoustic: useSimulated
@@ -26,8 +32,12 @@ final channelRegistryProvider = Provider<ChannelRegistry>((ref) {
             symbolDurationMs: acousticConfig.symbolDurationMs,
             sampleRate: acousticConfig.sampleRate,
           ),
-    ChannelId.mechanical: NotImplementedChannel(ChannelId.mechanical),
-    ChannelId.magnetic: NotImplementedChannel(ChannelId.magnetic),
+    ChannelId.mechanical: useSimulated
+        ? SimulatedChannel(id: ChannelId.mechanical)
+        : MechanicalChannel(symbolDurationMs: mechanicalConfig.symbolDurationMs),
+    ChannelId.magnetic: useSimulated
+        ? SimulatedChannel(id: ChannelId.magnetic)
+        : MagneticChannel(toneHz: magneticConfig.toneHz, symbolDurationMs: magneticConfig.symbolDurationMs),
     ChannelId.optical: useSimulated
         ? SimulatedChannel(id: ChannelId.optical)
         : OpticalChannel(config: opticalConfig),
