@@ -22,6 +22,42 @@ class AcousticMetrics extends ChannelMetrics {
   final AcousticLinkState state;
 }
 
+enum MechanicalLinkState { idle, listening, locked }
+
+class MechanicalMetrics extends ChannelMetrics {
+  const MechanicalMetrics({
+    required this.accelerationMagnitude,
+    required this.thresholdMagnitude,
+    required this.detectedSymbol,
+    required this.confidence,
+    required this.state,
+  });
+
+  final double accelerationMagnitude;
+  final double thresholdMagnitude;
+  final int? detectedSymbol;
+  final double confidence;
+  final MechanicalLinkState state;
+}
+
+enum MagneticLinkState { idle, listening, locked }
+
+class MagneticMetrics extends ChannelMetrics {
+  const MagneticMetrics({
+    required this.fieldMagnitudeMicroTesla,
+    required this.thresholdMicroTesla,
+    required this.detectedSymbol,
+    required this.confidence,
+    required this.state,
+  });
+
+  final double fieldMagnitudeMicroTesla;
+  final double thresholdMicroTesla;
+  final int? detectedSymbol;
+  final double confidence;
+  final MagneticLinkState state;
+}
+
 enum OpticalRole { idle, searching, locked, transmitting }
 
 class OpticalMetrics extends ChannelMetrics {
