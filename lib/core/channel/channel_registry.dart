@@ -11,7 +11,12 @@ class ChannelRegistry {
 
   final Map<ChannelId, PhysicalChannel> _channels;
 
-  static const Set<ChannelId> implementedChannelIds = {ChannelId.acoustic, ChannelId.optical};
+  static const Set<ChannelId> implementedChannelIds = {
+    ChannelId.acoustic,
+    ChannelId.mechanical,
+    ChannelId.magnetic,
+    ChannelId.optical,
+  };
 
   bool isImplemented(ChannelId id) => implementedChannelIds.contains(id);
 
