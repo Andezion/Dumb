@@ -28,7 +28,7 @@ class HomeScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 24),
-              const Center(child: Text('Phyra', style: PhyraTextStyles.title)),
+              const Center(child: Text('PHYRA', style: PhyraTextStyles.title)),
               const SizedBox(height: 8),
               const Center(
                 child: Text('Physical communication lab', style: PhyraTextStyles.subtitle),
