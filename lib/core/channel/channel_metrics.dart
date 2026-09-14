@@ -58,6 +58,24 @@ class MagneticMetrics extends ChannelMetrics {
   final MagneticLinkState state;
 }
 
+enum LightLinkState { idle, listening, locked }
+
+class LightMetrics extends ChannelMetrics {
+  const LightMetrics({
+    required this.luxLevel,
+    required this.thresholdLux,
+    required this.detectedSymbol,
+    required this.confidence,
+    required this.state,
+  });
+
+  final double luxLevel;
+  final double thresholdLux;
+  final int? detectedSymbol;
+  final double confidence;
+  final LightLinkState state;
+}
+
 enum OpticalRole { idle, searching, locked, transmitting }
 
 class OpticalMetrics extends ChannelMetrics {
