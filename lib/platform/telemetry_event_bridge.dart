@@ -45,6 +45,14 @@ class TelemetryEventBridge {
           confidence: (map['confidence'] as num).toDouble(),
           state: MagneticLinkState.values.byName(map['state'] as String),
         );
+      case 'light':
+        return LightMetrics(
+          luxLevel: (map['luxLevel'] as num).toDouble(),
+          thresholdLux: (map['thresholdLux'] as num).toDouble(),
+          detectedSymbol: map['detectedSymbol'] as int?,
+          confidence: (map['confidence'] as num).toDouble(),
+          state: LightLinkState.values.byName(map['state'] as String),
+        );
       default:
         debugPrint('[TelemetryEventBridge] ERROR: unknown telemetry kind: ${map['kind']}');
         throw StateError('Unknown telemetry kind: ${map['kind']}');
