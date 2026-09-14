@@ -53,8 +53,10 @@ class _TransferInstrumentPanelScreenState extends ConsumerState<TransferInstrume
   OpticalMetrics? _latestOpticalMetrics;
   MechanicalMetrics? _latestMechanicalMetrics;
   MagneticMetrics? _latestMagneticMetrics;
+  LightMetrics? _latestLightMetrics;
   final List<double> _mechanicalHistory = [];
   final List<double> _magneticHistory = [];
+  final List<double> _lightHistory = [];
   bool _navigatedToReport = false;
 
   @override
@@ -78,6 +80,12 @@ class _TransferInstrumentPanelScreenState extends ConsumerState<TransferInstrume
           _latestMagneticMetrics = metrics;
           _magneticHistory.add(metrics.fieldMagnitudeMicroTesla);
           if (_magneticHistory.length > _kWaveformHistoryLength) _magneticHistory.removeAt(0);
+        });
+      } else if (metrics is LightMetrics) {
+        setState(() {
+          _latestLightMetrics = metrics;
+          _lightHistory.add(metrics.luxLevel);
+          if (_lightHistory.length > _kWaveformHistoryLength) _lightHistory.removeAt(0);
         });
       }
     });
@@ -137,10 +145,12 @@ class _TransferInstrumentPanelScreenState extends ConsumerState<TransferInstrume
         _latestOpticalMetrics?.confidence ??
         _latestMechanicalMetrics?.confidence ??
         _latestMagneticMetrics?.confidence ??
+        _latestLightMetrics?.confidence ??
         0.0;
     final symbolLabel = _latestAcousticMetrics?.detectedSymbol?.toString() ??
         _latestMechanicalMetrics?.detectedSymbol?.toString() ??
         _latestMagneticMetrics?.detectedSymbol?.toString() ??
+        _latestLightMetrics?.detectedSymbol?.toString() ??
         '—';
     final isOptical = widget.channelId == ChannelId.optical;
     final progress = switch (phase) {
@@ -212,6 +222,14 @@ class _TransferInstrumentPanelScreenState extends ConsumerState<TransferInstrume
                       label: 'Magnetic field',
                       samples: _magneticHistory,
                       maxValue: _latestMagneticMetrics!.thresholdMicroTesla * 2,
+                    ),
+                  )
+                else if (_latestLightMetrics != null)
+                  PhyraPanel(
+                    child: WaveformGraph(
+                      label: 'Ambient light',
+                      samples: _lightHistory,
+                      maxValue: _latestLightMetrics!.thresholdLux * 2,
                     ),
                   ),
               ],
