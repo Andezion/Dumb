@@ -84,7 +84,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _footerDot() => const Text('·', style: PhyraTextStyles.telemetryLabel);
+  Widget _footerDot() => const Text('-', style: PhyraTextStyles.telemetryLabel);
 
   void _showLabMenu(BuildContext context) {
     showModalBottomSheet<void>(
