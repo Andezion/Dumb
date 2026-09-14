@@ -16,6 +16,7 @@ class ChannelRegistry {
     ChannelId.mechanical,
     ChannelId.magnetic,
     ChannelId.optical,
+    ChannelId.ambientLight,
   };
 
   bool isImplemented(ChannelId id) => implementedChannelIds.contains(id);
