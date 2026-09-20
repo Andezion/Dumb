@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 sealed class ChannelMetrics {
   const ChannelMetrics();
 }
@@ -98,4 +100,38 @@ class OpticalMetrics extends ChannelMetrics {
   final int? frameIndex;
   final int framesLocked;
   final int frameCrcErrors;
+}
+
+class OpticalFlashMetrics extends ChannelMetrics {
+  const OpticalFlashMetrics({
+    required this.brightness,
+    required this.thresholdBrightness,
+    required this.role,
+    required this.confidence,
+    this.detectedSymbol,
+  });
+
+  final double brightness;
+  final double thresholdBrightness;
+  final OpticalRole role;
+  final double confidence;
+  final int? detectedSymbol;
+}
+
+class OpticalQrMetrics extends ChannelMetrics {
+  const OpticalQrMetrics({
+    required this.role,
+    required this.confidence,
+    this.frameIndex,
+    this.framesLocked = 0,
+    this.frameCrcErrors = 0,
+    this.qrFrameBytes,
+  });
+
+  final OpticalRole role;
+  final double confidence;
+  final int? frameIndex;
+  final int framesLocked;
+  final int frameCrcErrors;
+  final Uint8List? qrFrameBytes;
 }
