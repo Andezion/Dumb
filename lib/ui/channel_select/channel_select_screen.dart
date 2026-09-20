@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import '../../core/channel/channel_id.dart';
 import '../../theme/phyra_text_styles.dart';
 import '../common/transfer_intent.dart';
+import '../mechanical/mechanical_mode_screen.dart';
+import '../optical/optical_mode_screen.dart';
 import '../security/security_select_screen.dart';
 import 'channel_card.dart';
 
@@ -16,6 +18,18 @@ class ChannelSelectScreen extends StatelessWidget {
   final File? file;
 
   void _selectChannel(BuildContext context, ChannelId id) {
+    if (id == ChannelId.optical) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => OpticalModeScreen(intent: intent, file: file)),
+      );
+      return;
+    }
+    if (id == ChannelId.mechanical) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => MechanicalModeScreen(intent: intent, file: file)),
+      );
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => SecuritySelectScreen(intent: intent, channelId: id, file: file),
