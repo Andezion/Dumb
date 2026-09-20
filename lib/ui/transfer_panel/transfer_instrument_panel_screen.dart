@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../core/channel/channel_id.dart';
 import '../../core/channel/channel_metrics.dart';
@@ -12,6 +13,7 @@ import '../../core/security/security_config.dart';
 import '../../core/transfer/transfer_manager_provider.dart';
 import '../../core/transfer/transfer_state.dart';
 import '../../platform/optical/optical_channel.dart';
+import '../../platform/optical/optical_config.dart';
 import '../../platform/optical/optical_grid_frame.dart';
 import '../../theme/phyra_colors.dart';
 import '../../theme/phyra_text_styles.dart';
@@ -51,12 +53,15 @@ class _TransferInstrumentPanelScreenState extends ConsumerState<TransferInstrume
   StreamSubscription<ChannelMetrics>? _metricsSubscription;
   AcousticMetrics? _latestAcousticMetrics;
   OpticalMetrics? _latestOpticalMetrics;
+  OpticalFlashMetrics? _latestOpticalFlashMetrics;
+  OpticalQrMetrics? _latestOpticalQrMetrics;
   MechanicalMetrics? _latestMechanicalMetrics;
   MagneticMetrics? _latestMagneticMetrics;
   LightMetrics? _latestLightMetrics;
   final List<double> _mechanicalHistory = [];
   final List<double> _magneticHistory = [];
   final List<double> _lightHistory = [];
+  final List<double> _opticalFlashHistory = [];
   bool _navigatedToReport = false;
 
   @override
@@ -69,6 +74,14 @@ class _TransferInstrumentPanelScreenState extends ConsumerState<TransferInstrume
         setState(() => _latestAcousticMetrics = metrics);
       } else if (metrics is OpticalMetrics) {
         setState(() => _latestOpticalMetrics = metrics);
+      } else if (metrics is OpticalFlashMetrics) {
+        setState(() {
+          _latestOpticalFlashMetrics = metrics;
+          _opticalFlashHistory.add(metrics.brightness);
+          if (_opticalFlashHistory.length > _kWaveformHistoryLength) _opticalFlashHistory.removeAt(0);
+        });
+      } else if (metrics is OpticalQrMetrics) {
+        setState(() => _latestOpticalQrMetrics = metrics);
       } else if (metrics is MechanicalMetrics) {
         setState(() {
           _latestMechanicalMetrics = metrics;
@@ -143,11 +156,14 @@ class _TransferInstrumentPanelScreenState extends ConsumerState<TransferInstrume
     final stats = managerState.statistics;
     final signalLevel = _latestAcousticMetrics?.signalLevel ??
         _latestOpticalMetrics?.confidence ??
+        _latestOpticalFlashMetrics?.confidence ??
+        _latestOpticalQrMetrics?.confidence ??
         _latestMechanicalMetrics?.confidence ??
         _latestMagneticMetrics?.confidence ??
         _latestLightMetrics?.confidence ??
         0.0;
     final symbolLabel = _latestAcousticMetrics?.detectedSymbol?.toString() ??
+        _latestOpticalFlashMetrics?.detectedSymbol?.toString() ??
         _latestMechanicalMetrics?.detectedSymbol?.toString() ??
         _latestMagneticMetrics?.detectedSymbol?.toString() ??
         _latestLightMetrics?.detectedSymbol?.toString() ??
@@ -197,7 +213,16 @@ class _TransferInstrumentPanelScreenState extends ConsumerState<TransferInstrume
               ],
               const SizedBox(height: 20),
               if (isOptical)
-                Expanded(flex: 3, child: _OpticalPanel(intent: widget.intent, metrics: _latestOpticalMetrics))
+                Expanded(
+                  flex: 3,
+                  child: _OpticalPanel(
+                    intent: widget.intent,
+                    gridMetrics: _latestOpticalMetrics,
+                    flashMetrics: _latestOpticalFlashMetrics,
+                    flashHistory: _opticalFlashHistory,
+                    qrMetrics: _latestOpticalQrMetrics,
+                  ),
+                )
               else ...[
                 PhyraPanel(child: SignalMeter(level: signalLevel)),
                 const SizedBox(height: 16),
@@ -302,18 +327,32 @@ String _formatBytes(int bytes) {
 }
 
 class _OpticalPanel extends ConsumerWidget {
-  const _OpticalPanel({required this.intent, required this.metrics});
+  const _OpticalPanel({
+    required this.intent,
+    required this.gridMetrics,
+    required this.flashMetrics,
+    required this.flashHistory,
+    required this.qrMetrics,
+  });
 
   final TransferIntent intent;
-  final OpticalMetrics? metrics;
+  final OpticalMetrics? gridMetrics;
+  final OpticalFlashMetrics? flashMetrics;
+  final List<double> flashHistory;
+  final OpticalQrMetrics? qrMetrics;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return intent == TransferIntent.transmit ? _buildTransmit() : _buildReceive(ref);
+    final mode = ref.watch(opticalConfigProvider).mode;
+    return switch (mode) {
+      OpticalMode.flash => intent == TransferIntent.transmit ? _buildFlashTransmit() : _buildFlashReceive(ref),
+      OpticalMode.qrFrames => intent == TransferIntent.transmit ? _buildQrTransmit() : _buildQrReceive(ref),
+      OpticalMode.screenGrid => intent == TransferIntent.transmit ? _buildGridTransmit() : _buildGridReceive(ref),
+    };
   }
 
-  Widget _buildTransmit() {
-    final cells = metrics?.cells ?? List<bool>.filled(OpticalGridFrame.cellCount, false);
+  Widget _buildGridTransmit() {
+    final cells = gridMetrics?.cells ?? List<bool>.filled(OpticalGridFrame.cellCount, false);
     return Column(
       children: [
         Expanded(
@@ -323,14 +362,14 @@ class _OpticalPanel extends ConsumerWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          metrics == null ? 'Waiting to start' : 'Frame ${metrics!.frameIndex}',
+          gridMetrics == null ? 'Waiting to start' : 'Frame ${gridMetrics!.frameIndex}',
           style: PhyraTextStyles.telemetryLabel,
         ),
       ],
     );
   }
 
-  Widget _buildReceive(WidgetRef ref) {
+  Widget _buildGridReceive(WidgetRef ref) {
     final channel = ref.read(channelRegistryProvider).forId(ChannelId.optical);
     final controller = channel is OpticalChannel ? channel.previewController : null;
     final initialized = controller != null && controller.value.isInitialized;
@@ -354,11 +393,134 @@ class _OpticalPanel extends ConsumerWidget {
               : const Center(child: CircularProgressIndicator(color: PhyraColors.lightGray)),
         ),
         const SizedBox(height: 8),
-        Text(_roleLabel(metrics?.role), style: PhyraTextStyles.telemetryLabel),
-        if (metrics != null) ...[
+        Text(_roleLabel(gridMetrics?.role), style: PhyraTextStyles.telemetryLabel),
+        if (gridMetrics != null) ...[
           const SizedBox(height: 4),
           Text(
-            'Frames locked ${metrics!.framesLocked} - Frame CRC errors ${metrics!.frameCrcErrors}',
+            'Frames locked ${gridMetrics!.framesLocked} - Frame CRC errors ${gridMetrics!.frameCrcErrors}',
+            style: PhyraTextStyles.telemetryLabel,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildFlashTransmit() {
+    final bit = flashMetrics?.detectedSymbol;
+    final torchOn = bit == 1;
+    return Column(
+      children: [
+        Expanded(
+          child: Center(
+            child: Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: torchOn ? PhyraColors.white : PhyraColors.nearBlack,
+                border: Border.all(color: PhyraColors.mediumGray),
+              ),
+              child: Center(
+                child: Text(
+                  torchOn ? 'TORCH ON' : 'TORCH OFF',
+                  style: PhyraTextStyles.telemetryLabel.copyWith(
+                    color: torchOn ? PhyraColors.black : PhyraColors.lightGray,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          flashMetrics == null ? 'Waiting to start' : 'Symbol $bit',
+          style: PhyraTextStyles.telemetryLabel,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFlashReceive(WidgetRef ref) {
+    final channel = ref.read(channelRegistryProvider).forId(ChannelId.optical);
+    final controller = channel is OpticalChannel ? channel.previewController : null;
+    final initialized = controller != null && controller.value.isInitialized;
+
+    return Column(
+      children: [
+        if (initialized)
+          SizedBox(
+            height: 96,
+            child: AspectRatio(
+              aspectRatio: controller.value.aspectRatio,
+              child: CameraPreview(controller),
+            ),
+          ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: WaveformGraph(
+            label: 'Camera brightness',
+            samples: flashHistory,
+            maxValue: (flashMetrics?.thresholdBrightness ?? 128) * 2,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(_roleLabel(flashMetrics?.role), style: PhyraTextStyles.telemetryLabel),
+      ],
+    );
+  }
+
+  Widget _buildQrTransmit() {
+    final frameBytes = qrMetrics?.qrFrameBytes;
+    return Column(
+      children: [
+        Expanded(
+          child: Center(
+            child: frameBytes == null
+                ? Text('Waiting to start', style: PhyraTextStyles.telemetryLabel)
+                : ColoredBox(
+                    color: PhyraColors.white,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: QrImageView.withQr(
+                        qr: QrCode.fromUint8List(data: frameBytes, errorCorrectLevel: QrErrorCorrectLevel.L),
+                        size: 220,
+                        backgroundColor: PhyraColors.white,
+                      ),
+                    ),
+                  ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          qrMetrics == null ? 'Waiting to start' : 'Frame ${qrMetrics!.frameIndex}',
+          style: PhyraTextStyles.telemetryLabel,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQrReceive(WidgetRef ref) {
+    final channel = ref.read(channelRegistryProvider).forId(ChannelId.optical);
+    final controller = channel is OpticalChannel ? channel.previewController : null;
+    final initialized = controller != null && controller.value.isInitialized;
+
+    return Column(
+      children: [
+        Expanded(
+          child: initialized
+              ? Center(
+                  child: AspectRatio(
+                    aspectRatio: controller.value.aspectRatio,
+                    child: CameraPreview(controller),
+                  ),
+                )
+              : const Center(child: CircularProgressIndicator(color: PhyraColors.lightGray)),
+        ),
+        const SizedBox(height: 8),
+        Text(_roleLabel(qrMetrics?.role), style: PhyraTextStyles.telemetryLabel),
+        if (qrMetrics != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Frames locked ${qrMetrics!.framesLocked} - Frame CRC errors ${qrMetrics!.frameCrcErrors}',
             style: PhyraTextStyles.telemetryLabel,
           ),
         ],
@@ -367,7 +529,7 @@ class _OpticalPanel extends ConsumerWidget {
   }
 
   String _roleLabel(OpticalRole? role) => switch (role) {
-        null || OpticalRole.idle => 'No signal - align camera with screen',
+        null || OpticalRole.idle => 'No signal - align camera with light source',
         OpticalRole.searching => 'Searching for sync',
         OpticalRole.locked => 'Sync locked',
         OpticalRole.transmitting => 'Transmitting',
