@@ -9,11 +9,12 @@ import '../core/channel/channel_metrics.dart';
 import '../core/channel/physical_channel.dart';
 import '../core/channel/received_symbol.dart';
 import 'channel_method_bridge.dart';
+import 'mechanical_config.dart';
 import 'symbol_event_bridge.dart';
 import 'telemetry_event_bridge.dart';
 
 class MechanicalChannel implements PhysicalChannel {
-  MechanicalChannel({this.symbolDurationMs = 150})
+  MechanicalChannel({this.config = const MechanicalConfig()})
       : _methodBridge = ChannelMethodBridge(),
         _symbolBridge = SymbolEventBridge(),
         _telemetryBridge = TelemetryEventBridge();
@@ -21,13 +22,17 @@ class MechanicalChannel implements PhysicalChannel {
   @override
   final ChannelId id = ChannelId.mechanical;
 
-  final int symbolDurationMs;
+  final MechanicalConfig config;
 
   final ChannelMethodBridge _methodBridge;
   final SymbolEventBridge _symbolBridge;
   final TelemetryEventBridge _telemetryBridge;
 
-  Map<String, dynamic> get _baseConfig => {'symbolDurationMs': symbolDurationMs};
+  Map<String, dynamic> get _baseConfig => {
+        'mode': config.mode.wireValue,
+        'symbolDurationMs': config.symbolDurationMs,
+        'pulseWindowMs': config.pulseWindowMs,
+      };
 
   @override
   Future<ChannelCapabilities> initialize() async {
