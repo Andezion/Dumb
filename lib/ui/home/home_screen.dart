@@ -8,6 +8,7 @@ import '../channel_select/channel_select_screen.dart';
 import '../common/transfer_intent.dart';
 import '../debug/frequency_config_screen.dart';
 import '../debug/mode_a_demo_screen.dart';
+import '../lab/rolling_shutter_experiment_screen.dart';
 import '../transmit/file_pick_screen.dart';
 import 'widgets/signal_propagation_visualization.dart';
 
@@ -107,6 +108,13 @@ class HomeScreen extends StatelessWidget {
                 onTap: () {
                   Navigator.of(context).pop();
                   _push(context, const FrequencyConfigScreen());
+                },
+              ),
+              ListTile(
+                title: const Text('Rolling shutter experiment', style: PhyraTextStyles.buttonLabel),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _push(context, const RollingShutterExperimentScreen());
                 },
               ),
             ],
