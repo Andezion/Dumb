@@ -115,4 +115,20 @@ void main() {
       expect(decoded.frameIndex, 3);
     });
   });
+
+  group('OpticalFrameSampler.averageLuma', () {
+    test('returns 0 for an empty buffer', () {
+      expect(OpticalFrameSampler.averageLuma(Uint8List(0)), 0);
+    });
+
+    test('returns the exact mean for a uniform buffer', () {
+      final buffer = Uint8List(64)..fillRange(0, 64, 200);
+      expect(OpticalFrameSampler.averageLuma(buffer, stride: 1), 200.0);
+    });
+
+    test('subsamples with the given stride', () {
+      final buffer = Uint8List.fromList(List<int>.generate(10, (i) => i.isEven ? 0 : 255));
+      expect(OpticalFrameSampler.averageLuma(buffer, stride: 2), 0.0);
+    });
+  });
 }
