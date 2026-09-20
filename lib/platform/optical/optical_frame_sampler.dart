@@ -60,6 +60,17 @@ abstract final class OpticalFrameSampler {
     return OpticalSampleResult(cells: cells, contrast: contrast);
   }
 
+  static double averageLuma(Uint8List yPlane, {int stride = 8}) {
+    if (yPlane.isEmpty) return 0;
+    var sum = 0;
+    var count = 0;
+    for (var i = 0; i < yPlane.length; i += stride) {
+      sum += yPlane[i];
+      count++;
+    }
+    return count == 0 ? 0 : sum / count;
+  }
+
   static (int, int) _displaySize(int bufferWidth, int bufferHeight, int rotation) {
     final normalized = ((rotation % 360) + 360) % 360;
     return (normalized == 90 || normalized == 270) ? (bufferHeight, bufferWidth) : (bufferWidth, bufferHeight);
