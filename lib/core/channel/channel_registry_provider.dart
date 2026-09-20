@@ -36,7 +36,7 @@ final channelRegistryProvider = Provider<ChannelRegistry>((ref) {
           ),
     ChannelId.mechanical: useSimulated
         ? SimulatedChannel(id: ChannelId.mechanical)
-        : MechanicalChannel(symbolDurationMs: mechanicalConfig.symbolDurationMs),
+        : MechanicalChannel(config: mechanicalConfig),
     ChannelId.magnetic: useSimulated
         ? SimulatedChannel(id: ChannelId.magnetic)
         : MagneticChannel(toneHz: magneticConfig.toneHz, symbolDurationMs: magneticConfig.symbolDurationMs),
