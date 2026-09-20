@@ -9,7 +9,7 @@ void main() {
     await tester.pump(); 
 
     expect(find.text('PHYRA'), findsWidgets);
-    expect(find.text('TRANSMIT'), findsOneWidget);
-    expect(find.text('RECEIVE'), findsOneWidget);
+    expect(find.text('Transmit'), findsOneWidget);
+    expect(find.text('Receive'), findsOneWidget);
   });
 }
